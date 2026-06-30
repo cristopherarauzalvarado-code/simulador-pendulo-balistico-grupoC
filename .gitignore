@@ -1,0 +1,36 @@
+# Python estandar
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Entornos virtuales
+.venv/
+venv/
+env/
+ENV/
+
+# Distribucion / empaquetado
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Herramientas y cobertura
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Editores e IDE
+.vscode/
+.idea/
+*.swp
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+
+# Salidas generadas por el simulador (graficas exportadas para el informe)
+*.png
+!docs/*.png

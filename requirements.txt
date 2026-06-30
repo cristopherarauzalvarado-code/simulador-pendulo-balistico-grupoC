@@ -1,0 +1,5 @@
+# Dependencias del simulador de pendulo balistico (Fisica I - Grupo C).
+# Tkinter NO se lista aqui: forma parte de la libreria estandar de Python.
+numpy
+scipy
+matplotlib
