@@ -23,6 +23,12 @@ segundos.
 > Si no deja abrirlo: clic derecho sobre `abrir_simulador.command` -> **Abrir**
 > -> **Abrir**. Solo hay que hacerlo una vez.
 
+> **Nota (descarga como ZIP):** si obtuvo el proyecto bajando el ZIP de GitHub
+> (en lugar de `git clone`), el doble clic puede no funcionar porque el ZIP
+> pierde el permiso de ejecucion. Solucion, una sola vez desde la carpeta del
+> proyecto en la Terminal: `chmod +x abrir_simulador.command`. Con
+> `git clone` / `git pull` esto no pasa.
+
 ### Opcion B - Por terminal (equivalente, paso a paso)
 
 Desde la carpeta del proyecto:
