@@ -88,13 +88,14 @@ Resumen de los `TODO` repartidos por modulo:
 ## Estado de los modulos
 
 - `colision.py`   : IMPLEMENTADO (Cristopher Arauz).
-- `oscilacion.py` : PENDIENTE - esqueleto con firma y TODO (Sidney Rodriguez).
-- `graficas.py`   : PENDIENTE - esqueleto con firma y TODO (Maciel Gomez).
-- `interfaz.py`   : PENDIENTE - esqueleto con firma y TODO (Tatiana Solis).
+- `oscilacion.py` : IMPLEMENTADO - baseline aproximado (Sidney Rodriguez).
+- `graficas.py`   : IMPLEMENTADO - baseline 4 graficas 2x2 (Maciel Gomez).
+- `interfaz.py`   : IMPLEMENTADO - baseline GUI + animacion (Tatiana Solis).
 - `main.py`/`run.py`: andamiaje compartido listo.
 
-Cada integrante implementa su propio modulo respetando el contrato. Los
-esqueletos pendientes lanzan `NotImplementedError` hasta que se desarrollen.
+Todos los modulos del baseline estan implementados y conectados: `python run.py`
+lanza la GUI completa. Quedan pendientes solo los TODO del Informe Final
+repartidos por modulo (ver arriba).
 
 ## Como ejecutar / verificar
 

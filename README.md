@@ -10,19 +10,47 @@ las magnitudes fisicas.
 
 ---
 
-## Ejecucion de un solo comando
+## Como abrir el proyecto (macOS)
 
-Con Python 3.10 o superior instalado, desde la carpeta del proyecto ejecute:
+### Opcion A - Un solo clic (recomendada, sin comandos)
+
+Doble clic en el archivo **`abrir_simulador.command`** que esta en la carpeta
+del proyecto. Eso es todo: la primera vez instala lo que falte (Python con Tk,
+numpy, scipy, matplotlib) y abre el simulador; las siguientes veces lo abre en
+segundos.
+
+> La primera vez macOS puede advertir que el archivo se descargo de internet.
+> Si no deja abrirlo: clic derecho sobre `abrir_simulador.command` -> **Abrir**
+> -> **Abrir**. Solo hay que hacerlo una vez.
+
+### Opcion B - Por terminal (equivalente, paso a paso)
+
+Desde la carpeta del proyecto:
 
 ```bash
-python run.py
+# 1. Instalar un Python con Tk moderno (SOLO la primera vez en la maquina)
+brew install python-tk@3.13
+
+# 2. Crear el entorno virtual con ese Python
+/opt/homebrew/opt/python@3.13/bin/python3.13 -m venv .venv
+
+# 3. Instalar dependencias (numpy, scipy, matplotlib)
+.venv/bin/python -m pip install -r requirements.txt
+
+# 4. Abrir el simulador
+.venv/bin/python run.py
 ```
 
-`run.py` se encarga de **instalar automaticamente** las dependencias (numpy,
-scipy, matplotlib) si faltan, y luego lanza la interfaz grafica. No se requieren
-pasos manuales de instalacion.
+Despues de la instalacion (pasos 1-3, una sola vez), para abrir el proyecto
+basta el paso 4.
 
-> En algunos sistemas el comando es `python3 run.py` en lugar de `python run.py`.
+> **Importante (macOS):** NO use `python run.py` a secas ni el boton "Play" de
+> VS Code apuntando al Python del sistema. Ese Python trae una version vieja de
+> Tk (8.5.9) que en macOS moderno dibuja la **ventana en blanco**. Use siempre
+> el lanzador o el Python del entorno `.venv` (Tk 9.0). En VS Code:
+> `Cmd+Shift+P` -> "Python: Select Interpreter" -> elija el de `.venv`.
+
+> Requiere [Homebrew](https://brew.sh) instalado (una sola vez por maquina).
 
 ---
 
@@ -61,6 +89,7 @@ anotado en los `TODO` de cada modulo para el **Informe Final**.
 
 ```
 pendulo-balistico-sim/
+  abrir_simulador.command  Lanzador de un clic para macOS (instala todo y abre)
   run.py            Instala dependencias si faltan y lanza el simulador
   requirements.txt  numpy, scipy, matplotlib
   README.md         Este archivo
@@ -122,6 +151,13 @@ Imprime una demostracion y verifica la conservacion del momentum.
   - macOS (Homebrew): `brew install python-tk`
   - Ubuntu/Debian: `sudo apt-get install python3-tk`
   - Windows: reinstale Python marcando la opcion "tcl/tk and IDLE".
+
+- **La ventana abre pero sale en BLANCO (macOS)**
+  Es el sintoma del Tk viejo (8.5.9) del Python del sistema. Solucion: use el
+  lanzador `abrir_simulador.command` o el Python del entorno `.venv` creado con
+  `python-tk@3.13` (ver "Como abrir el proyecto"). Para confirmar la version de
+  Tk: `python3 -c "import tkinter; print(tkinter.TkVersion)"` (debe ser 8.6 o
+  superior; 8.5 es la que falla).
 
 - **No aparece la ventana / error de backend de Matplotlib**
   Asegurese de ejecutar en un entorno con interfaz grafica (no por SSH sin
