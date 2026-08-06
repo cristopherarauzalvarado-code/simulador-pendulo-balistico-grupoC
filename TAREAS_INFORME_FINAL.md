@@ -7,14 +7,16 @@ modulo, respetando las firmas del contrato definidas en `CLAUDE.md`.
 
 ## Cristopher Arauz - `src/colision.py`
 
-- [ ] Implementar el metodo exacto: incorporar la inercia rotacional del
+- [x] Implementar el metodo exacto: incorporar la inercia rotacional del
       pendulo fisico (caja con dimensiones) en el calculo de la colision, en
       lugar de tratarla como masa puntual.
-- [ ] Modelar el impacto no central: usar conservacion del momento angular
+- [x] Modelar el impacto no central: usar conservacion del momento angular
       respecto al pivote cuando el proyectil no impacta en el centro de masa.
-- [ ] Agregar el coeficiente de restitucion para soportar choques
+- [x] Agregar el coeficiente de restitucion para soportar choques
       parcialmente elasticos (e entre 0 y 1), ademas del caso perfectamente
       inelastico actual.
+- [ ] Pendiente para Sidney/Tatiana: conectar `velocidad_angular_tras_impacto_exacto`
+      con `oscilacion.py` y con el selector de metodo de la interfaz.
 
 ## Sidney Rodriguez - `src/oscilacion.py`
 
