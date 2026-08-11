@@ -77,17 +77,19 @@ basta el paso 4.
 
 ---
 
-## Modelo fisico (baseline)
+## Modelo fisico
 
 - **Colision inelastica:** `v1 = m * v0 / (m + M)` (conservacion del momentum).
-- **Oscilacion:** pendulo simple de masa puntual, ecuacion completa
-  `theta'' = -(g/L) sin(theta)` con `g = 9.81 m/s^2`, integrada con
-  `scipy.integrate.solve_ivp`.
+- **Oscilacion:** pendulo fisico con amortiguamiento viscoso, ecuacion completa
+  `theta'' = -((m+M)*g*L_cm/I)*sin(theta) - (b/I)*omega` con `g = 9.81 m/s^2`,
+  integrada con `scipy.integrate.solve_ivp`. Periodo por integral eliptica.
 - Condiciones iniciales: `theta(0) = 0`, `omega(0) = v1 / L`.
-- Metodo **aproximado**: masa puntual, **sin friccion** ni amortiguamiento.
+- Sin kwargs: modo baseline (masa puntual, sin amortiguamiento) identico al
+  original. Con kwargs: pendulo fisico con inercia rotacional.
 
-El metodo exacto (inercia rotacional, amortiguamiento y graficas 5-9) queda
-anotado en los `TODO` de cada modulo para el **Informe Final**.
+El metodo exacto (inercia rotacional, amortiguamiento y datos para graficas 5-9)
+esta implementado en `oscilacion.py`. Quedan pendientes las graficas 5-9 en
+`graficas.py` y el selector de metodo en `interfaz.py`.
 
 ---
 
@@ -121,7 +123,7 @@ respetando el contrato de firmas (ver `CLAUDE.md`):
 | Modulo        | Responsable      | Estado                  |
 |---------------|------------------|-------------------------|
 | colision.py   | Cristopher Arauz | Implementado            |
-| oscilacion.py | Sidney Rodriguez | Pendiente (esqueleto)   |
+| oscilacion.py | Sidney Rodriguez | Implementado            |
 | graficas.py   | Maciel Gomez     | Pendiente (esqueleto)   |
 | interfaz.py   | Tatiana Solis    | Pendiente (esqueleto)   |
 
@@ -130,13 +132,16 @@ lista de `TODO`; lanzan `NotImplementedError` hasta que se desarrollen.
 
 ## Pruebas rapidas de los modulos
 
-El modulo de colision (ya implementado) se puede ejecutar de forma aislada:
+Los modulos de colision y oscilacion se pueden ejecutar de forma aislada:
 
 ```bash
 python -m src.colision
+python -m src.oscilacion
 ```
 
-Imprime una demostracion y verifica la conservacion del momentum.
+El primero verifica la conservacion del momentum. El segundo verifica la
+conservacion de energia, el decaimiento con amortiguamiento y la
+compatibilidad hacia atras con el baseline.
 
 ---
 

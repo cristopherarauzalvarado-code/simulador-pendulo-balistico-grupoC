@@ -15,19 +15,20 @@ modulo, respetando las firmas del contrato definidas en `CLAUDE.md`.
 - [x] Agregar el coeficiente de restitucion para soportar choques
       parcialmente elasticos (e entre 0 y 1), ademas del caso perfectamente
       inelastico actual.
-- [ ] Pendiente para Sidney/Tatiana: conectar `velocidad_angular_tras_impacto_exacto`
+- [/] Pendiente para Sidney/Tatiana: conectar `velocidad_angular_tras_impacto_exacto`
       con `oscilacion.py` y con el selector de metodo de la interfaz.
+      (oscilacion.py ya acepta omega1 via kwargs; falta el selector en interfaz.py)
 
 ## Sidney Rodriguez - `src/oscilacion.py`
 
-- [ ] Implementar el metodo exacto de oscilacion: pendulo fisico con
+- [x] Implementar el metodo exacto de oscilacion: pendulo fisico con
       momento de inercia (en vez de masa puntual), coordinado con el metodo
       exacto de `colision.py`.
-- [ ] Agregar amortiguamiento viscoso al modelo (termino proporcional a
+- [x] Agregar amortiguamiento viscoso al modelo (termino proporcional a
       omega en la ecuacion diferencial).
-- [ ] Calcular el periodo real mediante integral eliptica y compararlo con
+- [x] Calcular el periodo real mediante integral eliptica y compararlo con
       la aproximacion de angulos pequenos.
-- [ ] Generar los datos adicionales que requieren las graficas 5-9 (posicion
+- [x] Generar los datos adicionales que requieren las graficas 5-9 (posicion
       del centro de masa x(t)/y(t), velocidad lineal v(t), energia potencial
       Ep(t), energia mecanica total Emec(t), tension T(t)).
 

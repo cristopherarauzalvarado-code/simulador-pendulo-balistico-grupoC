@@ -44,8 +44,10 @@ run.py
 velocidad_tras_impacto(m, M, v0) -> v1          # v1 = m*v0/(m+M)
 
 # oscilacion.py  (Responsable: Sidney Rodriguez)
-simular_oscilacion(m, M, L, v1, t_max, dt) -> dict(
-    t, theta, omega, v, p, ek)                  # arreglos NumPy de igual largo
+simular_oscilacion(m, M, L, v1, t_max, dt, **kwargs) -> dict(
+    t, theta, omega, v, p, ek,                  # arreglos NumPy (baseline)
+    x_cm, y_cm, ep, emec, tension,              # arreglos NumPy (nuevos)
+    T_real, T_aprox)                            # escalares (periodos)
 
 # graficas.py  (Responsable: Maciel Gomez)
 PanelGraficas.agregar_punto(t, theta, omega, p, ek)
@@ -57,29 +59,39 @@ lanzar()
 
 ### Semantica de las magnitudes del dict de oscilacion
 
-- `t`     : tiempo (s)
-- `theta` : angulo respecto a la vertical (rad), `theta(0)=0`
-- `omega` : velocidad angular (rad/s), `omega(0)=v1/L`
-- `v`     : rapidez tangencial, `v = L*omega` (m/s)
-- `p`     : momentum lineal, `p = (m+M)*v` (kg*m/s)
-- `ek`    : energia cinetica, `Ek = 0.5*(m+M)*v^2` (J)
+- `t`      : tiempo (s)
+- `theta`  : angulo respecto a la vertical (rad), `theta(0)=0`
+- `omega`  : velocidad angular (rad/s), `omega(0)=v1/L` o `omega1` (kwarg)
+- `v`      : velocidad tangencial del CM, `v = L_cm*omega` (m/s), con signo
+- `p`      : momentum lineal, `p = (m+M)*v` (kg*m/s)
+- `ek`     : energia cinetica rotacional, `Ek = 0.5*I*omega^2` (J)
+- `x_cm`   : posicion horizontal del CM, `x = L_cm*sin(theta)` (m)
+- `y_cm`   : posicion vertical del CM, `y = -L_cm*cos(theta)` (m)
+- `ep`     : energia potencial, `Ep = (m+M)*g*L_cm*(1-cos(theta))` (J)
+- `emec`   : energia mecanica total, `Emec = Ek + Ep` (J)
+- `tension`: tension de la cuerda (N)
+- `T_real` : periodo real por integral eliptica (s) - escalar
+- `T_aprox`: periodo de angulos pequenos (s) - escalar
 
 ## Modelo fisico
 
-- Colision: perfectamente inelastica, conservacion del momentum lineal.
-- Oscilacion: pendulo simple, ecuacion completa `theta'' = -(g/L)sin(theta)`,
-  `g = 9.81`, integrada con `scipy.integrate.solve_ivp` (RK45). Sin aproximacion
-  de angulos pequenos.
-- Baseline **aproximado**: masa puntual, sin friccion/amortiguamiento.
+- Colision: perfectamente inelastica, conservacion del momentum lineal. Metodo
+  exacto con inercia rotacional, impacto no central y coeficiente de restitucion.
+- Oscilacion: pendulo fisico con amortiguamiento viscoso, ecuacion completa
+  `theta'' = -((m+M)*g*L_cm/I)*sin(theta) - (b/I)*omega`, `g = 9.81`,
+  integrada con `scipy.integrate.solve_ivp` (RK45). Sin aproximacion de angulos
+  pequenos. Periodo calculado por integral eliptica.
+- Modo baseline (sin kwargs): masa puntual, sin amortiguamiento — identico al
+  original.
 
 ## Estado y pendientes (Informe Final)
 
 Resumen de los `TODO` repartidos por modulo:
 
-- **colision:** inercia rotacional, impacto no central, coeficiente de
-  restitucion.
-- **oscilacion:** metodo exacto (pendulo fisico con inercia), amortiguamiento,
-  periodo por integral eliptica, datos para graficas 5-9.
+- **colision:** ~~inercia rotacional, impacto no central, coeficiente de
+  restitucion~~ COMPLETADO.
+- **oscilacion:** ~~metodo exacto (pendulo fisico con inercia), amortiguamiento,
+  periodo por integral eliptica, datos para graficas 5-9~~ COMPLETADO.
 - **graficas:** graficas 5-9 (Ep, energia total, retrato de fase, alpha, altura),
   exportar a PNG, comparar simulaciones, blitting.
 - **interfaz:** pausar/reanudar/reiniciar, selector de metodo, casilla de
@@ -88,19 +100,19 @@ Resumen de los `TODO` repartidos por modulo:
 ## Estado de los modulos
 
 - `colision.py`   : IMPLEMENTADO (Cristopher Arauz).
-- `oscilacion.py` : IMPLEMENTADO - baseline aproximado (Sidney Rodriguez).
+- `oscilacion.py` : IMPLEMENTADO - baseline + metodo exacto (Sidney Rodriguez).
 - `graficas.py`   : IMPLEMENTADO - baseline 4 graficas 2x2 (Maciel Gomez).
 - `interfaz.py`   : IMPLEMENTADO - baseline GUI + animacion (Tatiana Solis).
 - `main.py`/`run.py`: andamiaje compartido listo.
 
 Todos los modulos del baseline estan implementados y conectados: `python run.py`
-lanza la GUI completa. Quedan pendientes solo los TODO del Informe Final
-repartidos por modulo (ver arriba).
+lanza la GUI completa. Quedan pendientes los TODO del Informe Final de graficas
+e interfaz (ver arriba).
 
 ## Como ejecutar / verificar
 
 ```bash
 python run.py             # un solo comando: instala deps y lanza la GUI
-                          # (requiere los modulos pendientes ya implementados)
 python -m src.colision    # demo + verificacion del modulo de colision (listo)
+python -m src.oscilacion  # demo + verificacion del modulo de oscilacion (listo)
 ```
