@@ -11,9 +11,9 @@ Descripcion:
 
 Modulos y estado:
     colision    -> Cristopher Arauz   (IMPLEMENTADO)
-    oscilacion  -> Sidney Rodriguez   (PENDIENTE - esqueleto)
-    graficas    -> Maciel Gomez       (PENDIENTE - esqueleto)
-    interfaz    -> Tatiana Solis      (PENDIENTE - esqueleto)
+    oscilacion  -> Sidney Rodriguez   (IMPLEMENTADO)
+    graficas    -> Maciel Gomez       (IMPLEMENTADO)
+    interfaz    -> Tatiana Solis      (IMPLEMENTADO)
     main        -> punto de arranque de la GUI (andamiaje)
 
 Nota: cada integrante desarrolla su propio modulo respetando el contrato de

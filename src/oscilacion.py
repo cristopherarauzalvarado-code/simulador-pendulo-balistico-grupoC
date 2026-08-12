@@ -48,36 +48,34 @@ Estado:
     alpha, periodos).
 
 Contrato (no cambiar la firma de los 6 argumentos posicionales):
-    simular_oscilacion(m, M, L, v1, t_max, dt, **kwargs) -> dict(
+    simular_oscilacion(m, M, L, v1, t_max, dt, metodo="aproximado",
+        I_caja_cm=0.0, b=None, amortiguamiento=False,
+        coef_amortiguamiento=0.0) -> dict(
         t, theta, omega, v, p, ek,             # claves del baseline
-        x_cm, y_cm, ep, emec, tension,         # magnitudes adicionales
-        T_real, T_aprox)                       # periodos (escalares)
+        x, y, ep, emec, tension, alpha,        # magnitudes adicionales
+        metodo, theta_max,                     # escalares
+        periodo_aproximado, periodo_exacto)    # periodos (escalares)
 
-    Los kwargs opcionales son: omega1, I_total, L_cm, b_amort.
-    Cuando no se pasan kwargs, el comportamiento es identico al baseline.
+    Los parametros opcionales (metodo, I_caja_cm, b, amortiguamiento,
+    coef_amortiguamiento) tienen valores por defecto que reproducen
+    exactamente el comportamiento del baseline.
 
-    Donde cada clave (salvo T_real y T_aprox) es un arreglo NumPy de igual
-    longitud:
+    Donde cada clave (salvo metodo, theta_max, periodo_*) es un arreglo
+    NumPy de igual longitud:
         t       : tiempo (s)
         theta   : angulo respecto a la vertical (rad)
         omega   : velocidad angular (rad/s)
-        v       : velocidad tangencial del CM, v = L_cm*omega (m/s), con signo
-        p       : momentum lineal, p = (m+M)*v (kg*m/s), con signo
-        ek      : energia cinetica rotacional, Ek = 0.5*I*omega^2 (J)
-        x_cm    : posicion horizontal del CM, x = L_cm*sin(theta) (m)
-        y_cm    : posicion vertical del CM, y = -L_cm*cos(theta) (m)
-        ep      : energia potencial, Ep = (m+M)*g*L_cm*(1 - cos(theta)) (J)
+        v       : rapidez tangencial, v = L*omega (m/s)
+        p       : momentum lineal, p = (m+M)*v (kg*m/s)
+        ek      : energia cinetica, Ek = 0.5*(m+M)*v^2 (J)
+        x       : posicion horizontal del CM, x = L*sin(theta) (m)
+        y       : posicion vertical del CM, y = -L*cos(theta) (m)
+        ep      : energia potencial, Ep = (m+M)*g*L*(1 - cos(theta)) (J)
         emec    : energia mecanica total, Emec = Ek + Ep (J)
         tension : tension de la cuerda (N)
-        T_real  : periodo real por integral eliptica (s) - escalar, asume b_amort=0
-        T_aprox : periodo de angulos pequenos (s) - escalar, asume b_amort=0
-
-    Los parametros nuevos (metodo, I_caja_cm, b, amortiguamiento,
-    coef_amortiguamiento) son opcionales con valores por defecto que
-    reproducen exactamente el comportamiento del baseline, y las claves
-    nuevas del dict de salida (x, y, ep, emec, tension, alpha, metodo,
-    theta_max, periodo_aproximado, periodo_exacto) se agregan sin quitar
-    ninguna de las originales.
+        alpha   : aceleracion angular (rad/s^2)
+        periodo_aproximado : periodo de angulos pequenos (s) - escalar
+        periodo_exacto     : periodo real por integral eliptica (s) - escalar
 
 TODO (baseline):
     - [x] Definir la ecuacion del pendulo theta'' = -(g/L) sin(theta).
@@ -191,19 +189,6 @@ def simular_oscilacion(m, M, L, v1, t_max, dt, metodo="aproximado",
         coef_amortiguamiento : coeficiente de amortiguamiento viscoso
                 (1/s), debe ser >= 0. Ignorado si amortiguamiento es False.
 
-    Kwargs opcionales:
-        omega1  : velocidad angular inicial (rad/s). Si None, se calcula como
-                  v1 / L (baseline). Usar el valor de
-                  colision.velocidad_angular_tras_impacto_exacto para el
-                  metodo exacto.
-        I_total : momento de inercia total respecto al pivote (kg*m^2). Si
-                  None, se calcula como (m+M)*L^2 (masa puntual).
-        L_cm    : distancia del pivote al CM del conjunto (m). Si None, usa L.
-        b_amort : coeficiente de amortiguamiento viscoso (kg*m^2/s). Por
-                  defecto 0.0 (sin amortiguamiento).
-
-    Nota: I_total y L_cm deben proporcionarse juntos o no proporcionarse.
-    Pasar solo uno de los dos genera un ValueError.
 
     Retorna:
         dict con arreglos NumPy de igual longitud:
@@ -255,6 +240,7 @@ def simular_oscilacion(m, M, L, v1, t_max, dt, metodo="aproximado",
 
     # Condiciones iniciales: theta(0) = 0, omega(0) = v1 / L.
     theta0 = 0.0
+    omega0 = v1 / L
     estado_inicial = [theta0, omega0]
 
     # Tiempos de evaluacion solicitados.
@@ -280,8 +266,6 @@ def simular_oscilacion(m, M, L, v1, t_max, dt, metodo="aproximado",
         rtol=1e-10,
         atol=1e-12,
         dense_output=False,
-        rtol=1e-9,
-        atol=1e-9,
     )
 
     # Extraccion de resultados.
@@ -435,7 +419,7 @@ def _demostracion():
 
     # Verificacion: todos los arreglos deben tener el mismo numero de muestras.
     claves_arreglos = ["t", "theta", "omega", "v", "p", "ek",
-                       "x_cm", "y_cm", "ep", "emec", "tension"]
+                       "x", "y", "ep", "emec", "tension", "alpha"]
     n = len(datos["t"])
     for clave in claves_arreglos:
         assert len(datos[clave]) == n, \
@@ -452,28 +436,25 @@ def _demostracion():
     print("Verificacion de conservacion de energia: OK "
           "(variacion = {:.2e} J)".format(variacion_emec))
 
-    # --- Demo 2: pendulo fisico con amortiguamiento ---
+    # --- Demo 2: pendulo fisico con amortiguamiento (metodo exacto) ---
     print()
-    print("2) Pendulo fisico con amortiguamiento")
-    params = parametros_pendulo_fisico(m, M, L, I_caja_cm=0.02,
-                                       b_impacto=1.8)
-    print("   I_caja_cm=0.02 kg*m^2, b_impacto=1.8 m")
-    print("   -> I_total = {:.6f} kg*m^2, L_cm = {:.6f} m".format(
-        params["I_total"], params["L_cm"]))
-
-    omega1 = 0.6  # velocidad angular inicial de ejemplo
+    print("2) Pendulo fisico con amortiguamiento (metodo exacto)")
+    I_caja_cm_demo = 0.02
     datos2 = simular_oscilacion(m, M, L, v1, t_max, dt,
-                                omega1=omega1,
-                                I_total=params["I_total"],
-                                L_cm=params["L_cm"],
-                                b_amort=0.05)
+                                metodo="exacto",
+                                I_caja_cm=I_caja_cm_demo,
+                                amortiguamiento=True,
+                                coef_amortiguamiento=0.3)
+    print("   metodo=exacto, I_caja_cm={} kg*m^2, coef=0.3".format(
+        I_caja_cm_demo))
 
     emec2 = datos2["emec"]
-    print("   omega1 = {} rad/s, b_amort = 0.05 kg*m^2/s".format(omega1))
     print("   Energia mecanica inicial = {:.6f} J".format(emec2[0]))
     print("   Energia mecanica final   = {:.6f} J".format(emec2[-1]))
-    print("   Periodo real (eliptica)  = {:.6f} s".format(datos2["T_real"]))
-    print("   Periodo aprox (peq. ang) = {:.6f} s".format(datos2["T_aprox"]))
+    print("   Periodo aproximado       = {:.6f} s".format(
+        datos2["periodo_aproximado"]))
+    print("   Periodo exacto           = {:.6f} s".format(
+        datos2["periodo_exacto"]))
 
     # Verificacion: energia mecanica debe decaer con amortiguamiento.
     assert emec2[-1] < emec2[0], \
@@ -488,9 +469,13 @@ def _demostracion():
           "T_aprox = {:.6f} s, error = {:.4f}%".format(
               periodos["T_real"], periodos["T_aprox"], periodos["error_pct"]))
 
+    # Con inercia rotacional: calcular I_total y L_cm a partir de las
+    # funciones auxiliares del modulo.
+    I_total_demo = _inercia_total_pivote(m, M, L, I_caja_cm=I_caja_cm_demo)
+    L_cm_demo = _momento_estatico_gravitatorio(m, M, L) / (m + M)
     periodos2 = calcular_periodos(m, M, L, theta0=0.5,
-                                  I_total=params["I_total"],
-                                  L_cm=params["L_cm"])
+                                  I_total=I_total_demo,
+                                  L_cm=L_cm_demo)
     print("   theta0 = 0.5 rad (fisico)   -> T_real = {:.6f} s, "
           "T_aprox = {:.6f} s, error = {:.4f}%".format(
               periodos2["T_real"], periodos2["T_aprox"],
