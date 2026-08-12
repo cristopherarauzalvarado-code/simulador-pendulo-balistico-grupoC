@@ -46,8 +46,10 @@ TODO (Informe Final):
           del momento angular respecto al pivote.
     - [x] Reportar el coeficiente de restitucion para choques parcialmente
           elasticos (e entre 0 y 1).
-    - [ ] Conectar el metodo exacto (omega1) con oscilacion.py y con el
-          selector de metodo de la interfaz (pendiente en esos modulos).
+    - [x] Conectar el metodo exacto (omega1) con oscilacion.py y con el
+          selector de metodo de la interfaz: la interfaz calcula
+          v1_equivalente = omega1 * L (resumen_colision_exacto) y lo pasa a
+          simular_oscilacion(..., metodo="exacto", I_caja_cm=..., b=...).
 """
 
 

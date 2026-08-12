@@ -5,29 +5,47 @@ Responsable: Sidney Rodriguez
 
 Que modela:
     El movimiento oscilatorio del pendulo (caja + proyectil incrustado) tras la
-    colision. Soporta dos modos:
+    colision. Ofrece dos metodos:
 
-    1. Baseline (masa puntual, sin friccion):
-        theta''(t) = -(g / L) * sin(theta)
+    - Metodo APROXIMADO (baseline): masa puntual (m + M) colgada de una cuerda
+      ideal de longitud L, sin friccion:
 
-    2. Pendulo fisico con amortiguamiento viscoso:
-        theta''(t) = -((m+M)*g*L_cm / I) * sin(theta) - (b_amort / I) * omega
+          theta''(t) = -(g / L) * sin(theta)        con g = 9.81 m/s^2
 
-    donde I es el momento de inercia total respecto al pivote, L_cm es la
-    distancia del pivote al centro de masa del conjunto, y b_amort es el
-    coeficiente de amortiguamiento viscoso. Cuando I = (m+M)*L^2, L_cm = L y
-    b_amort = 0, la ecuacion se reduce exactamente al baseline.
+    - Metodo EXACTO: pendulo fisico. La caja tiene su propio momento de
+      inercia respecto a su centro de masa (I_caja_cm) y el proyectil puede
+      incrustarse fuera del centro de masa, a un brazo de palanca b del
+      pivote (coordinado con `colision.velocidad_angular_tras_impacto_exacto`
+      y `colision.resumen_colision_exacto`, que ya calculan I_total y el
+      brazo b para el instante del choque). Durante la oscilacion posterior el
+      conjunto gira alrededor del pivote con:
 
-    Debe integrarse con scipy.integrate.solve_ivp (sin aproximacion de angulos
-    pequenos). Condiciones iniciales:
+          I_total * theta''(t) = -(M*L + m*b) * g * sin(theta)
+
+      Con I_caja_cm = 0 y b = L (impacto central, caja puntual) esta ecuacion
+      se reduce algebraicamente al metodo aproximado.
+
+    Ambos metodos admiten, opcionalmente, amortiguamiento viscoso (termino
+    proporcional a omega), sumando -gamma*omega a la aceleracion angular.
+
+    En los dos casos se integra con scipy.integrate.solve_ivp (sin aproximar
+    angulos pequenos). Condiciones iniciales:
         theta(0) = 0
         omega(0) = v1 / L        (baseline)
         omega(0) = omega1         (metodo exacto, via kwarg)
 
+    v1 es la velocidad lineal comun tras el impacto (contrato con colision.py).
+    Para el metodo exacto, quien llama a esta funcion (la interfaz) debe pasar
+    como v1 el valor "v1_equivalente" = omega1 * L que ya calcula
+    `colision.resumen_colision_exacto`, de forma que la firma de esta funcion
+    no cambie.
+
 Estado:
-    Implementado: baseline + metodo exacto (pendulo fisico con inercia
-    rotacional), amortiguamiento viscoso, periodo por integral eliptica,
-    y datos para graficas 5-9.
+    Metodo aproximado y metodo exacto implementados, ambos con amortiguamiento
+    viscoso opcional. Calculo del periodo real (integral eliptica) vs la
+    aproximacion de angulos pequenos. Genera todas las magnitudes derivadas
+    que requieren las graficas 5-9 del Informe Final (x, y, ep, emec, tension,
+    alpha, periodos).
 
 Contrato (no cambiar la firma de los 6 argumentos posicionales):
     simular_oscilacion(m, M, L, v1, t_max, dt, **kwargs) -> dict(
@@ -54,6 +72,13 @@ Contrato (no cambiar la firma de los 6 argumentos posicionales):
         T_real  : periodo real por integral eliptica (s) - escalar, asume b_amort=0
         T_aprox : periodo de angulos pequenos (s) - escalar, asume b_amort=0
 
+    Los parametros nuevos (metodo, I_caja_cm, b, amortiguamiento,
+    coef_amortiguamiento) son opcionales con valores por defecto que
+    reproducen exactamente el comportamiento del baseline, y las claves
+    nuevas del dict de salida (x, y, ep, emec, tension, alpha, metodo,
+    theta_max, periodo_aproximado, periodo_exacto) se agregan sin quitar
+    ninguna de las originales.
+
 TODO (baseline):
     - [x] Definir la ecuacion del pendulo theta'' = -(g/L) sin(theta).
     - [x] Integrar con solve_ivp usando t_eval = arange(0, t_max, dt).
@@ -63,69 +88,80 @@ TODO (Informe Final):
     - [x] Metodo exacto: pendulo fisico con inercia rotacional.
     - [x] Agregar amortiguamiento viscoso.
     - [x] Periodo real por integral eliptica vs aproximacion de angulos pequenos.
-    - [x] Datos para las graficas 5-9.
+    - [x] Datos para las graficas 5-9 (x, y, v, Ep, Emec, T).
 """
 
 import numpy as np
 import scipy.integrate as integrate
+import scipy.special as special
 from scipy.special import ellipk
 
 # Gravedad estandar usada por el modelo (m/s^2).
 GRAVEDAD = 9.81
 
+METODOS_VALIDOS = ("aproximado", "exacto")
 
-def parametros_pendulo_fisico(m, M, L, I_caja_cm=0.0, b_impacto=None):
+
+def _inercia_total_pivote(m, M, L, I_caja_cm=0.0, b=None):
     """
-    Calcula el momento de inercia total (I_total) y la distancia del pivote al
-    centro de masa del conjunto (L_cm) para un pendulo fisico compuesto por una
-    caja de masa M (con CM a distancia L del pivote) y un proyectil de masa m
-    incrustado a distancia b_impacto del pivote.
+    Momento de inercia total del conjunto (caja + proyectil incrustado)
+    respecto al pivote, igual que en `colision.velocidad_angular_tras_impacto_exacto`:
 
-    Formulas:
-        I_total = (I_caja_cm + M * L^2) + m * b_impacto^2
-        L_cm    = (M * L + m * b_impacto) / (m + M)
+        I_total = (I_caja_cm + M * L^2) + m * b^2
+    """
+    if b is None:
+        b = L
+    return (I_caja_cm + M * L ** 2) + m * b ** 2
 
-    Caso baseline (I_caja_cm = 0, b_impacto = L):
-        I_total = (m + M) * L^2
-        L_cm    = L
+
+def _momento_estatico_gravitatorio(m, M, L, b=None):
+    """
+    "Momento estatico" (M*L + m*b) que multiplicado por g da el torque
+    restaurador maximo (en theta = 90 grados) respecto al pivote. Con b = L
+    esto es (M + m) * L, el caso de masa puntual del baseline.
+    """
+    if b is None:
+        b = L
+    return M * L + m * b
+
+
+def periodo_pendulo(L, theta0, g=GRAVEDAD):
+    """
+    Periodo de oscilacion de un pendulo de longitud L con amplitud angular
+    theta0 (rad), por dos vias:
+
+    - Aproximacion de angulos pequenos (sin(theta) ~ theta), independiente de
+      la amplitud:
+          T_aprox = 2*pi*sqrt(L/g)
+
+    - Formula exacta (sin aproximar sin(theta)), mediante la integral
+      eliptica completa de primer tipo K(k), con modulo k = sin(theta0/2):
+          T_exacto = 4*sqrt(L/g) * K(k)
+
+      `scipy.special.ellipk` recibe el parametro m = k^2 (no el modulo k).
+      Cuando theta0 -> 0, T_exacto -> T_aprox (K(0) = pi/2).
 
     Parametros:
-        m          : masa del proyectil (kg), debe ser > 0.
-        M          : masa de la caja (kg), debe ser >= 0.
-        L          : distancia del pivote al CM de la caja (m), debe ser > 0.
-        I_caja_cm  : momento de inercia de la caja respecto a su propio centro
-                     de masa (kg*m^2), debe ser >= 0. Por defecto 0.0 (caja
-                     tratada como masa puntual).
-        b_impacto  : distancia del pivote al punto de impacto del proyectil (m),
-                     debe ser > 0. Por defecto None, equivalente a b_impacto = L
-                     (impacto en el CM de la caja).
+        L      : longitud de la cuerda (m), debe ser > 0.
+        theta0 : amplitud angular maxima de la oscilacion (rad). Se usa su
+                 valor absoluto.
+        g      : aceleracion de la gravedad (m/s^2). Por defecto GRAVEDAD.
 
     Retorna:
-        dict con:
-            I_total : momento de inercia total respecto al pivote (kg*m^2).
-            L_cm    : distancia del pivote al CM del conjunto (m).
+        (periodo_aproximado, periodo_exacto) en segundos.
     """
-    if m <= 0:
-        raise ValueError("La masa del proyectil m debe ser mayor que cero.")
-    if M < 0:
-        raise ValueError("La masa de la caja M no puede ser negativa.")
     if L <= 0:
-        raise ValueError("La distancia L debe ser mayor que cero.")
-    if I_caja_cm < 0:
-        raise ValueError(
-            "El momento de inercia I_caja_cm no puede ser negativo.")
-    if b_impacto is None:
-        b_impacto = L
-    if b_impacto <= 0:
-        raise ValueError(
-            "La distancia de impacto b_impacto debe ser mayor que cero.")
+        raise ValueError("La longitud L debe ser mayor que cero.")
 
-    I_total = (I_caja_cm + M * L ** 2) + m * b_impacto ** 2
-    L_cm = (M * L + m * b_impacto) / (m + M)
-    return {"I_total": I_total, "L_cm": L_cm}
+    periodo_aproximado = 2.0 * np.pi * np.sqrt(L / g)
+    k = np.sin(abs(theta0) / 2.0)
+    periodo_exacto = 4.0 * np.sqrt(L / g) * special.ellipk(k ** 2)
+    return float(periodo_aproximado), float(periodo_exacto)
 
 
-def simular_oscilacion(m, M, L, v1, t_max, dt, **kwargs):
+def simular_oscilacion(m, M, L, v1, t_max, dt, metodo="aproximado",
+                        I_caja_cm=0.0, b=None, amortiguamiento=False,
+                        coef_amortiguamiento=0.0):
     """
     Integra la oscilacion del pendulo balistico desde t=0 hasta t=t_max.
 
@@ -136,10 +172,24 @@ def simular_oscilacion(m, M, L, v1, t_max, dt, **kwargs):
     Parametros posicionales (contrato - no cambiar):
         m     : masa del proyectil (kg).
         M     : masa de la caja (kg).
-        L     : longitud de la cuerda (m).
-        v1    : velocidad lineal del conjunto tras el impacto (m/s).
+        L     : longitud de la cuerda (distancia del pivote al centro de masa
+                de la caja) (m).
+        v1    : velocidad lineal del conjunto tras el impacto (m/s). Para el
+                metodo exacto debe ser el "v1_equivalente" = omega1 * L (ver
+                `colision.resumen_colision_exacto`), de forma que
+                omega(0) = v1 / L siga siendo la condicion inicial correcta.
         t_max : tiempo total de simulacion (s).
         dt    : paso de muestreo para los arreglos de salida (s).
+        metodo: "aproximado" (masa puntual, baseline) o "exacto" (pendulo
+                fisico con inercia rotacional e impacto no central).
+        I_caja_cm : momento de inercia de la caja respecto a su propio centro
+                de masa (kg*m^2). Solo se usa si metodo == "exacto".
+        b     : brazo de palanca del impacto (m). Solo se usa si
+                metodo == "exacto". None equivale a b = L (impacto central).
+        amortiguamiento : si True, agrega un termino de amortiguamiento
+                viscoso -coef_amortiguamiento*omega a la aceleracion angular.
+        coef_amortiguamiento : coeficiente de amortiguamiento viscoso
+                (1/s), debe ser >= 0. Ignorado si amortiguamiento es False.
 
     Kwargs opcionales:
         omega1  : velocidad angular inicial (rad/s). Si None, se calcula como
@@ -156,8 +206,16 @@ def simular_oscilacion(m, M, L, v1, t_max, dt, **kwargs):
     Pasar solo uno de los dos genera un ValueError.
 
     Retorna:
-        dict con arreglos NumPy: t, theta, omega, v, p, ek, x_cm, y_cm, ep,
-        emec, tension, y escalares: T_real, T_aprox.
+        dict con arreglos NumPy de igual longitud:
+            t, theta, omega, v, p, ek           (contrato original)
+            x, y                                 posicion del centro de masa
+                                                   respecto al pivote (m)
+            ep, emec                             energia potencial y mecanica
+                                                   total (J)
+            tension                              tension de la cuerda (N)
+            alpha                                aceleracion angular (rad/s^2)
+        y los escalares:
+            metodo, theta_max, periodo_aproximado, periodo_exacto
     """
     # Validaciones de parametros posicionales.
     if L <= 0:
@@ -167,60 +225,49 @@ def simular_oscilacion(m, M, L, v1, t_max, dt, **kwargs):
             "El tiempo total de simulacion t_max debe ser mayor que cero.")
     if dt <= 0:
         raise ValueError("El paso de muestreo dt debe ser mayor que cero.")
+    if metodo not in METODOS_VALIDOS:
+        raise ValueError(
+            "metodo debe ser uno de {}.".format(METODOS_VALIDOS))
+    if I_caja_cm < 0:
+        raise ValueError("El momento de inercia I_caja_cm no puede ser negativo.")
+    if b is not None and b <= 0:
+        raise ValueError("El brazo de palanca b debe ser mayor que cero.")
+    if coef_amortiguamiento < 0:
+        raise ValueError("El coeficiente de amortiguamiento no puede ser negativo.")
 
     # Masa total del conjunto tras el impacto.
     masa_total = m + M
 
-    # --- Extraccion y validacion de kwargs ---
-    omega0 = kwargs.get("omega1", None)
-    I_ef = kwargs.get("I_total", None)
-    L_cm_ef = kwargs.get("L_cm", None)
-    b_amort = kwargs.get("b_amort", 0.0)
-
-    # Politica de coherencia: I_total y L_cm deben ir juntos.
-    if (I_ef is None) != (L_cm_ef is None):
-        raise ValueError(
-            "I_total y L_cm deben proporcionarse juntos o no proporcionarse.")
-
-    # Valores efectivos: si no se proporcionan, usar defaults del baseline.
-    if I_ef is None:
-        I_ef = masa_total * L ** 2      # masa puntual a distancia L
-        L_cm_ef = L                      # CM a distancia L del pivote
+    # Parametros dinamicos segun el metodo: en ambos casos la ecuacion se
+    # escribe como theta'' = -factor_angular*sin(theta) - gamma*omega, con
+    # factor_angular = g/L en el metodo aproximado (masa puntual) y
+    # factor_angular = (M*L + m*b)*g / I_total en el metodo exacto (se reduce
+    # al caso anterior cuando I_caja_cm = 0 y b = L).
+    if metodo == "exacto":
+        i_total = _inercia_total_pivote(m, M, L, I_caja_cm, b)
+        momento_estatico = _momento_estatico_gravitatorio(m, M, L, b)
+        factor_angular = momento_estatico * GRAVEDAD / i_total
     else:
-        if I_ef <= 0:
-            raise ValueError(
-                "El momento de inercia I_total debe ser mayor que cero.")
-        if L_cm_ef <= 0:
-            raise ValueError(
-                "La distancia al CM L_cm debe ser mayor que cero.")
+        i_total = masa_total * L ** 2
+        factor_angular = GRAVEDAD / L
 
-    if b_amort < 0:
-        raise ValueError(
-            "El coeficiente de amortiguamiento b_amort no puede ser negativo.")
+    gamma = coef_amortiguamiento if amortiguamiento else 0.0
 
-    # Condicion inicial de velocidad angular.
-    if omega0 is None:
-        omega0 = v1 / L
-
-    # Condiciones iniciales: theta(0) = 0, omega(0) = omega0.
+    # Condiciones iniciales: theta(0) = 0, omega(0) = v1 / L.
     theta0 = 0.0
     estado_inicial = [theta0, omega0]
 
     # Tiempos de evaluacion solicitados.
     t_eval = np.arange(0, t_max, dt)
 
-    # Ecuacion diferencial del pendulo fisico con amortiguamiento viscoso, en
-    # forma de sistema de primer orden:
-    #   dy[0]/dt = y[1]                                        (theta' = omega)
-    #   dy[1]/dt = -((m+M)*g*L_cm / I)*sin(theta) - (b/I)*omega
-    #
-    # Con I = (m+M)*L^2, L_cm = L y b_amort = 0, se reduce al baseline:
-    #   dy[1]/dt = -(g/L)*sin(theta)
+    # Ecuacion diferencial del pendulo en forma de sistema de primer orden.
+    # Se reescribe theta'' = -factor_angular*sin(theta) - gamma*omega como:
+    #   dy[0]/dt = y[1]                                  (derivada del angulo)
+    #   dy[1]/dt = -factor_angular*sin(y[0]) - gamma*y[1] (derivada de omega)
     def _ecuacion_pendulo(t, y):
         theta, omega = y
         dtheta_dt = omega
-        domega_dt = (-(masa_total * GRAVEDAD * L_cm_ef) / I_ef) \
-            * np.sin(theta) - (b_amort / I_ef) * omega
+        domega_dt = -factor_angular * np.sin(theta) - gamma * omega
         return [dtheta_dt, domega_dt]
 
     # Integracion numerica con el metodo RK45 (Runge-Kutta de orden 4-5).
@@ -233,6 +280,8 @@ def simular_oscilacion(m, M, L, v1, t_max, dt, **kwargs):
         rtol=1e-10,
         atol=1e-12,
         dense_output=False,
+        rtol=1e-9,
+        atol=1e-9,
     )
 
     # Extraccion de resultados.
@@ -240,46 +289,36 @@ def simular_oscilacion(m, M, L, v1, t_max, dt, **kwargs):
     theta = solucion.y[0]
     omega = solucion.y[1]
 
-    # --- Magnitudes derivadas (baseline, actualizadas para pendulo fisico) ---
-    # v mantiene el signo de omega para preservar la direccion del momentum.
-    v = L_cm_ef * omega                   # velocidad tangencial del CM (m/s)
+    # Aceleracion angular, evaluada con la misma ecuacion (no por diferencias
+    # finitas, para evitar ruido numerico).
+    alpha = -factor_angular * np.sin(theta) - gamma * omega
+
+    # Magnitudes derivadas del contrato original.
+    v = L * omega                         # rapidez tangencial (m/s)
     p = masa_total * v                    # momentum lineal (kg*m/s)
-    ek = 0.5 * I_ef * omega ** 2          # energia cinetica rotacional (J)
+    ek = 0.5 * masa_total * v ** 2         # energia cinetica (J)
 
-    # --- Magnitudes nuevas (graficas 5-9) ---
-    x_cm = L_cm_ef * np.sin(theta)        # posicion X del CM (m)
-    y_cm = -L_cm_ef * np.cos(theta)       # posicion Y del CM (m)
-    ep = masa_total * GRAVEDAD * L_cm_ef * (1.0 - np.cos(theta))  # Ep (J)
-    emec = ek + ep                        # energia mecanica total (J)
-    tension = masa_total * (GRAVEDAD * np.cos(theta)
-                            + L_cm_ef * omega ** 2)  # tension (N)
+    # Magnitudes adicionales para las graficas 5-9 del Informe Final.
+    # Posicion del centro de masa respecto al pivote (x horizontal, y hacia
+    # abajo es negativo; y = 0 en el pivote, y = -L en el reposo).
+    x = L * np.sin(theta)
+    y = -L * np.cos(theta)
 
-    # --- Periodo por integral eliptica (valido para b_amort = 0) ---
-    # Se busca el primer maximo local de |theta| como amplitud representativa.
-    # Para oscilacion sin amortiguamiento coincide con max(|theta|). Para
-    # oscilacion amortiguada, el primer pico es el de mayor amplitud.
-    abs_theta = np.abs(theta)
-    theta0_amp = 0.0
-    for i in range(1, len(abs_theta) - 1):
-        if abs_theta[i] > abs_theta[i - 1] \
-                and abs_theta[i] >= abs_theta[i + 1]:
-            theta0_amp = abs_theta[i]
-            break
-    # Si no se encontro un maximo local (e.g. t_max muy corto), usar el maximo
-    # global del arreglo.
-    if theta0_amp == 0.0 and len(abs_theta) > 0:
-        theta0_amp = float(np.max(abs_theta))
+    # Energia potencial gravitatoria (referencia: theta = 0, punto mas bajo).
+    ep = masa_total * GRAVEDAD * L * (1.0 - np.cos(theta))
+    emec = ek + ep
 
-    # Longitud equivalente del pendulo simple: l_eq = I / ((m+M)*g*L_cm).
-    longitud_eq = I_ef / (masa_total * GRAVEDAD * L_cm_ef)
-    T_aprox = 2.0 * np.pi * np.sqrt(longitud_eq)
+    # Tension de la cuerda: componente del peso a lo largo de la cuerda mas el
+    # termino centripeto (formula estandar del pendulo simple, aplicada a la
+    # masa total del conjunto).
+    tension = masa_total * GRAVEDAD * np.cos(theta) + masa_total * L * omega ** 2
 
-    if theta0_amp > 0.0:
-        k_cuadrado = np.sin(theta0_amp / 2.0) ** 2
-        T_real = 4.0 * np.sqrt(longitud_eq) * float(ellipk(k_cuadrado))
-    else:
-        # Caso degenerado: sin oscilacion (theta0 = 0).
-        T_real = T_aprox
+    # Amplitud alcanzada y periodos (aproximado vs exacto por integral
+    # eliptica), usando la amplitud maxima realmente alcanzada en la
+    # simulacion (relevante sobre todo si hay amortiguamiento, donde theta
+    # decae con el tiempo).
+    theta_max = float(np.max(np.abs(theta))) if theta.size else abs(theta0)
+    periodo_aproximado, periodo_exacto = periodo_pendulo(L, theta_max)
 
     return {
         "t": t,
@@ -288,13 +327,16 @@ def simular_oscilacion(m, M, L, v1, t_max, dt, **kwargs):
         "v": v,
         "p": p,
         "ek": ek,
-        "x_cm": x_cm,
-        "y_cm": y_cm,
+        "x": x,
+        "y": y,
         "ep": ep,
         "emec": emec,
         "tension": tension,
-        "T_real": T_real,
-        "T_aprox": T_aprox,
+        "alpha": alpha,
+        "metodo": metodo,
+        "theta_max": theta_max,
+        "periodo_aproximado": periodo_aproximado,
+        "periodo_exacto": periodo_exacto,
     }
 
 
@@ -379,16 +421,17 @@ def _demostracion():
 
     datos = simular_oscilacion(m, M, L, v1, t_max, dt)
 
-    theta_max_rad = np.max(np.abs(datos["theta"]))
-    theta_max_deg = np.degrees(theta_max_rad)
+    theta_max_deg = np.degrees(datos["theta_max"])
     ek_max = np.max(datos["ek"])
 
     print("Tiempo maximo simulado   = {:.4f} s".format(datos["t"][-1]))
     print("Angulo maximo alcanzado  = {:.6f} rad  ({:.4f} grados)".format(
-        theta_max_rad, theta_max_deg))
+        datos["theta_max"], theta_max_deg))
     print("Energia cinetica maxima  = {:.6f} J".format(ek_max))
-    print("Periodo real (eliptica)  = {:.6f} s".format(datos["T_real"]))
-    print("Periodo aprox (peq. ang) = {:.6f} s".format(datos["T_aprox"]))
+    print("Periodo aproximado (angulos pequenos) = {:.6f} s".format(
+        datos["periodo_aproximado"]))
+    print("Periodo exacto (integral eliptica)    = {:.6f} s".format(
+        datos["periodo_exacto"]))
 
     # Verificacion: todos los arreglos deben tener el mismo numero de muestras.
     claves_arreglos = ["t", "theta", "omega", "v", "p", "ek",
@@ -473,6 +516,39 @@ def _demostracion():
     print("   p  = (m+M)*v             : OK")
     print("   ek = 0.5*(m+M)*v^2       : OK")
     print("   Compatibilidad hacia atras verificada.")
+
+    # Verificacion: sin amortiguamiento, la energia mecanica debe conservarse.
+    emec = datos["emec"]
+    assert np.max(np.abs(emec - emec[0])) < 1e-6, \
+        "Sin amortiguamiento la energia mecanica deberia conservarse."
+    print("Verificacion de conservacion de energia mecanica: OK")
+
+    print()
+    print("Metodo exacto (pendulo fisico, caja con inercia I_caja_cm > 0):")
+    I_caja_cm = 0.02
+    datos_exacto = simular_oscilacion(
+        m, M, L, v1, t_max, dt, metodo="exacto", I_caja_cm=I_caja_cm)
+    print("Angulo maximo (exacto)   = {:.6f} rad".format(datos_exacto["theta_max"]))
+
+    # Caso limite: con I_caja_cm = 0 y b = L (impacto central), el metodo
+    # exacto debe coincidir con el metodo aproximado.
+    datos_exacto_limite = simular_oscilacion(
+        m, M, L, v1, t_max, dt, metodo="exacto", I_caja_cm=0.0, b=L)
+    assert np.max(np.abs(datos_exacto_limite["theta"] - datos["theta"])) < 1e-6, \
+        "El metodo exacto (caso limite) deberia coincidir con el aproximado."
+    print("Verificacion metodo exacto == aproximado (caso limite): OK")
+
+    print()
+    print("Amortiguamiento viscoso (coef = 0.3):")
+    datos_amortiguado = simular_oscilacion(
+        m, M, L, v1, t_max, dt, amortiguamiento=True, coef_amortiguamiento=0.3)
+    assert datos_amortiguado["theta_max"] <= datos["theta_max"] + 1e-9, \
+        "El amortiguamiento no deberia aumentar la amplitud maxima."
+    assert datos_amortiguado["emec"][-1] < datos_amortiguado["emec"][0], \
+        "Con amortiguamiento la energia mecanica final debe ser menor que la inicial."
+    print("Energia mecanica inicial = {:.6f} J | final = {:.6f} J".format(
+        datos_amortiguado["emec"][0], datos_amortiguado["emec"][-1]))
+    print("Verificacion de disipacion de energia con amortiguamiento: OK")
 
 
 if __name__ == "__main__":
