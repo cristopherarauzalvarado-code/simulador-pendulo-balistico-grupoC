@@ -67,27 +67,57 @@ basta el paso 4.
    - **M**  : masa de la caja (kg)
    - **v0** : velocidad inicial del proyectil (m/s)
    - **L**  : longitud de la cuerda (m)
-2. Presione **"Iniciar simulacion"**.
-3. Observe en el centro la **animacion del pendulo** y a la derecha las
-   **4 graficas en tiempo real**:
-   - theta(t) : angulo (rad)
-   - omega(t) : velocidad angular (rad/s)
-   - p(t)     : momentum lineal (kg*m/s)
-   - Ek(t)    : energia cinetica (J)
+2. Elija el **metodo** (aproximado o exacto con inercia) y, si quiere,
+   active el **amortiguamiento viscoso** con su coeficiente.
+3. Presione **"Iniciar simulacion"**. Puede **pausar/reanudar** o
+   **reiniciar** la animacion con los botones correspondientes.
+4. Observe en el centro la **animacion del pendulo**, debajo el **panel
+   numerico** (v1, energia perdida, amplitud y periodos) y a la derecha las
+   **graficas por pestanas**:
+   - *Cinematica basica*: theta(t), omega(t), p(t), Ek(t)
+   - *Energia y dinamica*: x(t)/y(t), v(t), Ek/Ep/Emec, T(t)
+   - *Comparacion de metodos*: v1 exacto vs aproximado (boton "Comparar metodos")
+   - *Comparar simulaciones*: con vs sin amortiguamiento (boton correspondiente)
+5. Use **"Exportar graficas a PNG"** para guardar todas las figuras en la
+   carpeta `reportes/` y usarlas en el Informe Final.
+
+> La ventana se puede **redimensionar y maximizar**: si en su pantalla las
+> graficas se ven apretadas o algun borde se corta, agrande la ventana (o
+> maximicela) y el panel de graficas usa el espacio libre. El tamano inicial
+> ya se calcula con margen para que nada quede cortado, pero en pantallas muy
+> pequenas (por ejemplo, un portatil de 13") puede convenir maximizarla.
+
+### Modo sin interfaz grafica (linea de comandos)
+
+Para generar las graficas sin abrir ninguna ventana (por ejemplo, para
+automatizar la generacion de figuras del informe):
+
+```bash
+python -m src.main --sin-gui --m 0.05 --M 2.0 --v0 300 --L 2.0 \
+    --metodo exacto --amortiguamiento --coef-amortiguamiento 0.2 \
+    --salida reportes
+```
+
+Ejecute `python -m src.main --help` para ver todas las opciones disponibles.
 
 ---
 
-## Modelo fisico (baseline)
+## Modelo fisico
 
-- **Colision inelastica:** `v1 = m * v0 / (m + M)` (conservacion del momentum).
-- **Oscilacion:** pendulo simple de masa puntual, ecuacion completa
-  `theta'' = -(g/L) sin(theta)` con `g = 9.81 m/s^2`, integrada con
-  `scipy.integrate.solve_ivp`.
+- **Colision:** perfectamente inelastica por defecto,
+  `v1 = m * v0 / (m + M)` (conservacion del momentum). El metodo exacto
+  trata la caja como un pendulo fisico con inercia rotacional propia y
+  admite impacto no central (conservacion del momento angular respecto al
+  pivote); tambien se puede modelar un choque con coeficiente de
+  restitucion `e` (0 = inelastico, 1 = elastico).
+- **Oscilacion:** metodo **aproximado** (masa puntual,
+  `theta'' = -(g/L) sin(theta)`) o **exacto** (pendulo fisico,
+  `I_total*theta'' = -(M*L + m*b)*g*sin(theta)`), ambos con
+  `g = 9.81 m/s^2`, integrados con `scipy.integrate.solve_ivp` (sin
+  aproximacion de angulos pequenos) y con amortiguamiento viscoso opcional.
 - Condiciones iniciales: `theta(0) = 0`, `omega(0) = v1 / L`.
-- Metodo **aproximado**: masa puntual, **sin friccion** ni amortiguamiento.
-
-El metodo exacto (inercia rotacional, amortiguamiento y graficas 5-9) queda
-anotado en los `TODO` de cada modulo para el **Informe Final**.
+- El periodo se calcula por dos vias: la aproximacion de angulos pequenos
+  (`2*pi*sqrt(L/g)`) y la formula exacta por integral eliptica.
 
 ---
 
@@ -103,40 +133,44 @@ pendulo-balistico-sim/
   .gitignore        Python estandar
   src/
     __init__.py
-    colision.py     velocidad_tras_impacto, momentum, energia perdida (Cristopher Arauz)
-    oscilacion.py   simular_oscilacion con solve_ivp (Sidney Rodriguez)
-    graficas.py     PanelGraficas con 4 subgraficas en Tkinter (Maciel Gomez)
-    interfaz.py     App(tk.Tk) y lanzar(): GUI + animacion (Tatiana Solis)
-    main.py         iniciar() arranca la GUI
+    colision.py     velocidad_tras_impacto + metodo exacto y restitucion (Cristopher Arauz)
+    oscilacion.py   simular_oscilacion con solve_ivp, exacto y amortiguamiento (Sidney Rodriguez)
+    graficas.py     PanelGraficas por pestanas (graficas 1-9) en Tkinter (Maciel Gomez)
+    interfaz.py     App(tk.Tk) y lanzar(): GUI completa + animacion (Tatiana Solis)
+    main.py         iniciar() arranca la GUI o corre en modo --sin-gui
 ```
 
 ---
 
 ## Estado de desarrollo
 
-Andamiaje compartido listo (`run.py`, `requirements.txt`, `README.md`,
-`CLAUDE.md`, `.gitignore`). Cada integrante implementa su propio modulo
-respetando el contrato de firmas (ver `CLAUDE.md`):
+Todos los modulos estan implementados, incluidas las extensiones del Informe
+Final (ver el detalle en `TAREAS_INFORME_FINAL.md` y el contrato ampliado en
+`CLAUDE.md`):
 
-| Modulo        | Responsable      | Estado                  |
-|---------------|------------------|-------------------------|
-| colision.py   | Cristopher Arauz | Implementado            |
-| oscilacion.py | Sidney Rodriguez | Pendiente (esqueleto)   |
-| graficas.py   | Maciel Gomez     | Pendiente (esqueleto)   |
-| interfaz.py   | Tatiana Solis    | Pendiente (esqueleto)   |
+| Modulo        | Responsable      | Estado                                    |
+|---------------|------------------|--------------------------------------------|
+| colision.py   | Cristopher Arauz | Implementado (baseline + exacto + restitucion) |
+| oscilacion.py | Sidney Rodriguez | Implementado (baseline + exacto + amortiguamiento + periodos) |
+| graficas.py   | Maciel Gomez     | Implementado (graficas 1-9, export PNG, comparaciones, blitting) |
+| interfaz.py   | Tatiana Solis    | Implementado (metodo, amortiguamiento, pausar/reiniciar, panel numerico) |
+| main.py       | Compartido       | Implementado (GUI + modo `--sin-gui`)     |
 
-Los modulos pendientes ya tienen su encabezado, la firma del contrato y una
-lista de `TODO`; lanzan `NotImplementedError` hasta que se desarrollen.
+Solo quedan las tareas de integracion del grupo (validar con distintos
+parametros, corregir errores y redactar el Informe Final), que no son de
+codigo.
 
 ## Pruebas rapidas de los modulos
 
-El modulo de colision (ya implementado) se puede ejecutar de forma aislada:
+Cada modulo se puede ejecutar de forma aislada e imprime una demostracion con
+verificaciones (conservacion del momentum, de la energia mecanica, etc.):
 
 ```bash
-python -m src.colision
+python -m src.colision      # colision inelastica, metodo exacto, restitucion
+python -m src.oscilacion    # oscilacion aproximada vs exacta, amortiguamiento
+python -m src.graficas      # demo interactiva del panel de graficas (abre una ventana)
+python -m src.main --sin-gui --salida reportes   # simulacion completa + export PNG
 ```
-
-Imprime una demostracion y verifica la conservacion del momentum.
 
 ---
 
@@ -168,6 +202,11 @@ Imprime una demostracion y verifica la conservacion del momentum.
 - **No aparece la ventana / error de backend de Matplotlib**
   Asegurese de ejecutar en un entorno con interfaz grafica (no por SSH sin
   reenvio de X11). El simulador usa el backend `TkAgg`.
+
+- **Alguna grafica se ve cortada contra el borde de la ventana**
+  Agrande o maximice la ventana: es redimensionable y el panel de graficas
+  crece con ella. El tamano inicial se calcula con margen extra, pero varia
+  segun el sistema operativo y el escalado de pantalla (HiDPI/Retina).
 
 - **`ModuleNotFoundError: No module named 'src'`**
   Ejecute siempre desde la carpeta raiz del proyecto con `python run.py`.
