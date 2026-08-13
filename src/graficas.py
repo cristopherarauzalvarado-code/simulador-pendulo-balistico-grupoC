@@ -157,10 +157,10 @@ class PanelGraficas:
         self._configurar_eje(self._ax_p, "Momentum lineal p(t)", "Tiempo (s)", "p (kg*m/s)")
         self._configurar_eje(self._ax_ek, "Energia cinetica Ek(t)", "Tiempo (s)", "Ek (J)")
 
-        (self._linea_theta,) = self._ax_theta.plot([], [], color="tab:blue", animated=True)
-        (self._linea_omega,) = self._ax_omega.plot([], [], color="tab:orange", animated=True)
-        (self._linea_p,) = self._ax_p.plot([], [], color="tab:green", animated=True)
-        (self._linea_ek,) = self._ax_ek.plot([], [], color="tab:red", animated=True)
+        (self._linea_theta,) = self._ax_theta.plot([], [], color="tab:blue", animated=False)
+        (self._linea_omega,) = self._ax_omega.plot([], [], color="tab:orange", animated=False)
+        (self._linea_p,) = self._ax_p.plot([], [], color="tab:green", animated=False)
+        (self._linea_ek,) = self._ax_ek.plot([], [], color="tab:red", animated=False)
 
         self._ejes_basica = (self._ax_theta, self._ax_omega, self._ax_p, self._ax_ek)
         self._lineas_basica = (self._linea_theta, self._linea_omega, self._linea_p, self._linea_ek)
@@ -190,18 +190,18 @@ class PanelGraficas:
         self._configurar_eje(self._ax_energias, "Energias Ek, Ep, Emec", "Tiempo (s)", "Energia (J)")
         self._configurar_eje(self._ax_tension, "Tension de la cuerda T(t)", "Tiempo (s)", "T (N)")
 
-        (self._linea_x,) = self._ax_posicion.plot([], [], color="tab:blue", label="x(t)", animated=True)
-        (self._linea_y,) = self._ax_posicion.plot([], [], color="tab:cyan", label="y(t)", animated=True)
+        (self._linea_x,) = self._ax_posicion.plot([], [], color="tab:blue", label="x(t)", animated=False)
+        (self._linea_y,) = self._ax_posicion.plot([], [], color="tab:cyan", label="y(t)", animated=False)
         self._ax_posicion.legend(fontsize=7, loc="upper right")
 
-        (self._linea_v,) = self._ax_velocidad.plot([], [], color="tab:purple", animated=True)
+        (self._linea_v,) = self._ax_velocidad.plot([], [], color="tab:purple", animated=False)
 
-        (self._linea_ek2,) = self._ax_energias.plot([], [], color="tab:red", label="Ek", animated=True)
-        (self._linea_ep,) = self._ax_energias.plot([], [], color="tab:green", label="Ep", animated=True)
-        (self._linea_emec,) = self._ax_energias.plot([], [], color="tab:gray", label="Emec", animated=True)
+        (self._linea_ek2,) = self._ax_energias.plot([], [], color="tab:red", label="Ek", animated=False)
+        (self._linea_ep,) = self._ax_energias.plot([], [], color="tab:green", label="Ep", animated=False)
+        (self._linea_emec,) = self._ax_energias.plot([], [], color="tab:gray", label="Emec", animated=False)
         self._ax_energias.legend(fontsize=7, loc="upper right")
 
-        (self._linea_tension,) = self._ax_tension.plot([], [], color="tab:brown", animated=True)
+        (self._linea_tension,) = self._ax_tension.plot([], [], color="tab:brown", animated=False)
 
         self._ejes_energia = (self._ax_posicion, self._ax_velocidad, self._ax_energias, self._ax_tension)
         self._lineas_energia = (
